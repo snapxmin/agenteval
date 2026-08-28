@@ -23,3 +23,24 @@ CI、评测、发布和运行事件。示例数据明确展示刷新延迟和采
 
 周期指标按自然日计算并展示 P50/P75/P95；比率为符合筛选条件的分子除以分母。
 默认时间窗口为近 30 天，目标阈值在指标卡趋势文字中展示，异常指标以黄色标识。
+
+## 由 plan.md 自动触发 Copilot 编码代理
+
+`.github/workflows/copilot-plan-to-pr.yml` 在 `main` 分支的 `plan.md` 发生变更
+时自动运行：它会读取 `plan.md` 内容创建一个 Issue，并通过 GraphQL API 将其分配
+给 GitHub Copilot 编码代理（coding agent），由 Copilot 基于该计划自动实现并最
+终生成对应的 Pull Request。也可以在 Actions 页面手动触发（`workflow_dispatch`）。
+
+使用前需要满足：
+
+1. 仓库已启用 Copilot 编码代理（Coding agent）。
+2. 在仓库 Settings → Secrets and variables → Actions 中添加名为 `COPILOT_PAT`
+   的 Secret，值为一个具备以下权限的个人访问令牌（因为分配 Issue 给 Copilot
+   需要 user-to-server 令牌，默认的 `GITHUB_TOKEN` 不满足要求）：
+   - 细粒度 PAT：对 Actions、Contents、Issues、Pull requests 具有读写权限，
+     对 Metadata 具有只读权限；
+   - 或经典 PAT：具备 `repo` 权限范围。
+
+工作流会创建标题为“Implement plan from plan.md”的 Issue，正文为 `plan.md` 的
+全部内容，并将其分配给 Copilot（`copilot-swe-agent`），触发编码代理在后台完成
+实现并打开 PR。
