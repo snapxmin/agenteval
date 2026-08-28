@@ -68,7 +68,7 @@ jobs:
           else
             git switch -c "$branch" "origin/$DEFAULT_BRANCH"
           fi
-          if [ "$branch_exists" = false ]; then
+          if [ "$branch_exists" = false ] || [ ! -s plan.md ]; then
             cat > plan.md <<EOF
           # 实施计划：${ISSUE_TITLE}
 
@@ -114,6 +114,7 @@ jobs:
           不要在本分支修改业务实现代码。原始 Issue：${ISSUE_URL}
           -->
           EOF
+           sed -i 's/^ //' plan.md
           fi
 
           stage="commit"
