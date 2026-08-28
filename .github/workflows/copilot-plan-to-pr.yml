@@ -1,0 +1,96 @@
+name: Trigger Copilot coding agent from plan.md
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'plan.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  assign-copilot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read plan.md
+        id: plan
+        run: |
+          {
+            echo 'content<<PLAN_EOF'
+            cat plan.md
+            echo 'PLAN_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Look up Copilot bot and repository IDs
+        id: ids
+        env:
+          GH_TOKEN: ${{ secrets.COPILOT_PAT }}
+        run: |
+          set -euo pipefail
+
+          response=$(gh api graphql -f query='
+            query($owner: String!, $name: String!) {
+              repository(owner: $owner, name: $name) {
+                id
+                suggestedActors(capabilities: [CAN_BE_ASSIGNED], first: 100) {
+                  nodes {
+                    login
+                    __typename
+                    ... on Bot { id }
+                    ... on User { id }
+                  }
+                }
+              }
+            }' -f owner="${{ github.repository_owner }}" -f name="${{ github.event.repository.name }}")
+
+          repo_id=$(echo "$response" | jq -r '.data.repository.id')
+          bot_id=$(echo "$response" | jq -r '.data.repository.suggestedActors.nodes[] | select(.login == "copilot-swe-agent") | .id')
+
+          if [ -z "$bot_id" ] || [ "$bot_id" = "null" ]; then
+            echo "::error::Copilot coding agent is not available for this repository. Enable it before using this workflow."
+            exit 1
+          fi
+
+          echo "repo_id=$repo_id" >> "$GITHUB_OUTPUT"
+          echo "bot_id=$bot_id" >> "$GITHUB_OUTPUT"
+
+      - name: Create issue and assign Copilot
+        env:
+          GH_TOKEN: ${{ secrets.COPILOT_PAT }}
+        run: |
+          set -euo pipefail
+
+          gh api graphql \
+            -H 'GraphQL-Features: issues_copilot_assignment_api_support,coding_agent_model_selection' \
+            -f query='
+              mutation($repositoryId: ID!, $title: String!, $body: String!, $assigneeId: ID!, $baseRef: String!) {
+                createIssue(input: {
+                  repositoryId: $repositoryId,
+                  title: $title,
+                  body: $body,
+                  assigneeIds: [$assigneeId],
+                  agentAssignment: {
+                    targetRepositoryId: $repositoryId,
+                    baseRef: $baseRef
+                  }
+                }) {
+                  issue {
+                    number
+                    url
+                    assignees(first: 10) {
+                      nodes { login }
+                    }
+                  }
+                }
+              }' \
+            -f repositoryId="${{ steps.ids.outputs.repo_id }}" \
+            -f title="Implement plan from plan.md" \
+            -f body="${{ steps.plan.outputs.content }}" \
+            -f assigneeId="${{ steps.ids.outputs.bot_id }}" \
+            -f baseRef="${{ github.event.repository.default_branch }}"
