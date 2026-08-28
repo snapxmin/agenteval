@@ -14,6 +14,10 @@ permissions:
 jobs:
   assign-copilot:
     runs-on: ubuntu-latest
+    # Skip (instead of failing) when the required COPILOT_PAT secret has not
+    # been configured yet, since the GraphQL assignment mutation requires a
+    # user-to-server token that the default GITHUB_TOKEN cannot provide.
+    if: ${{ secrets.COPILOT_PAT != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

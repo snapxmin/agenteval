@@ -41,6 +41,9 @@ CI、评测、发布和运行事件。示例数据明确展示刷新延迟和采
      对 Metadata 具有只读权限；
    - 或经典 PAT：具备 `repo` 权限范围。
 
+若尚未配置 `COPILOT_PAT`，`assign-copilot` 任务会自动跳过（而不是报错失败），
+避免在缺少必需 Secret 时产生无意义的失败状态；配置好 Secret 后重新运行即可。
+
 工作流会创建标题为“Implement plan from plan.md”的 Issue，正文为 `plan.md` 的
 全部内容，并将其分配给 Copilot（`copilot-swe-agent`），触发编码代理在后台完成
 实现并打开 PR。
