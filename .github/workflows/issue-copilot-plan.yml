@@ -1,0 +1,149 @@
+name: Create Copilot implementation plan
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  plan:
+    if: >-
+      github.event.issue.pull_request == null &&
+      github.event.issue.state == 'open'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      - name: Create branch and plan
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -Eeuo pipefail
+          stage="initialization"
+          report_failure() {
+            gh issue comment "$ISSUE_NUMBER" --repo "$REPOSITORY" \
+              --body "❌ Copilot 计划工作流在 **$stage** 阶段失败。请查看 Actions 日志：${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          }
+          trap report_failure ERR
+
+          slug=$(printf '%s' "$ISSUE_TITLE" |
+            tr '[:upper:]' '[:lower:]' |
+            sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//' |
+            cut -c1-48)
+          slug=${slug:-issue}
+          branch="copilot/issue-${ISSUE_NUMBER}-${slug}"
+
+          stage="deduplication"
+          existing_pr=$(gh pr list --repo "$REPOSITORY" --state all --head "$branch" \
+            --json number,url --jq '.[0] // empty')
+          if [ -n "$existing_pr" ]; then
+            pr_url=$(printf '%s' "$existing_pr" | jq -r '.url')
+            gh issue comment "$ISSUE_NUMBER" --repo "$REPOSITORY" \
+              --body "ℹ️ 已存在该 Issue 的计划分支/PR：$pr_url"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          stage="branch creation"
+          branch_exists=false
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            branch_exists=true
+            git fetch origin "$branch"
+            git switch -C "$branch" FETCH_HEAD
+          else
+            git switch -c "$branch" "origin/$DEFAULT_BRANCH"
+          fi
+          if [ "$branch_exists" = false ]; then
+            cat > plan.md <<EOF
+          # 实施计划：${ISSUE_TITLE}
+
+          > 来源 Issue：[#${ISSUE_NUMBER}](${ISSUE_URL})
+
+          ## 目标
+
+          根据 Issue 的需求完成可审阅的实施计划，明确预期结果和边界。
+
+          ## 现状 / 上下文
+
+          ${ISSUE_BODY:-（Issue 未提供描述。）}
+
+          ## 实施范围
+
+          - 仅生成和审阅本计划；不在此 PR 中直接修改业务实现。
+          - 确认相关模块、接口、数据流和现有约定后再实施。
+
+          ## 分阶段步骤
+
+          1. 检查现有实现、配置和测试，确认约束与依赖。
+          2. 拆分实现任务，明确每项任务的输入、输出和回滚方式。
+          3. 在独立提交中实现变更，并补充必要的测试或文档。
+          4. 运行验证命令，检查兼容性、权限和边界情况。
+
+          ## 涉及文件或模块
+
+          - 待代码审阅后根据仓库现状确定具体文件和模块。
+
+          ## 验收标准
+
+          - Issue 中的每项需求都有可验证的实现结果。
+          - 自动化测试和必要的手动验证均通过。
+          - 变更范围、权限和文档符合仓库约定。
+
+          ## 风险与验证方式
+
+          - 风险：需求描述可能遗漏现有实现的隐含约束；通过代码检索和评审前置确认。
+          - 风险：变更可能影响现有行为；通过现有测试、针对性测试和回归检查验证。
+
+          <!-- copilot-context
+          请将此计划作为 Issue #${ISSUE_NUMBER} 的唯一工作上下文。只审阅和完善 plan.md，
+          不要在本分支修改业务实现代码。原始 Issue：${ISSUE_URL}
+          -->
+          EOF
+          fi
+
+          stage="commit"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet || [ -z "$(git log --oneline --all -- plan.md)" ]; then
+            git add plan.md
+            git commit -m "docs: add implementation plan for #${ISSUE_NUMBER}"
+            git push --set-upstream origin "$branch"
+          else
+            git push --set-upstream origin "$branch" 2>/dev/null || true
+          fi
+
+          stage="pull request creation"
+          pr_url=$(gh pr create --repo "$REPOSITORY" --base "$DEFAULT_BRANCH" --head "$branch" \
+            --draft --title "Plan for #${ISSUE_NUMBER}: ${ISSUE_TITLE}" \
+            --body "Closes #${ISSUE_NUMBER}
+
+           This draft PR contains only the automatically generated implementation plan in \`plan.md\`.
+           It is awaiting human review before any implementation work begins.
+
+           Issue: ${ISSUE_URL}")
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "pr_url=$pr_url" >> "$GITHUB_OUTPUT"
+
+          stage="success comment"
+          gh issue comment "$ISSUE_NUMBER" --repo "$REPOSITORY" \
+            --body "✅ 已生成实施计划并创建 Draft PR。
+
+          - 分支：\`$branch\`
+          - Pull Request：$pr_url
+
+          该 PR 仅包含自动生成的 \`plan.md\`，等待人工审阅。"

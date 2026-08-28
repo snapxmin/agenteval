@@ -31,6 +31,20 @@ CI、评测、发布和运行事件。示例数据明确展示刷新延迟和采
 给 GitHub Copilot 编码代理（coding agent），由 Copilot 基于该计划自动实现并最
 终生成对应的 Pull Request。也可以在 Actions 页面手动触发（`workflow_dispatch`）。
 
+### Issue 驱动的计划 PR
+
+`.github/workflows/issue-copilot-plan.yml` 监听新建且仍处于打开状态的普通 Issue。
+它会从默认分支创建 `copilot/issue-<编号>-<标题>` 临时分支，在根目录生成结构化
+`plan.md`，并创建指向默认分支的 Draft PR。计划 PR 只包含计划，不直接修改业务代码；
+Issue 会收到分支和 PR 链接。工作流会先按分支查找已有 PR，因此重复投递不会重复创建。
+
+启用前请确认 Actions 允许使用 `GITHUB_TOKEN` 写入 Contents、Issues 和 Pull requests，
+并在仓库设置中允许 GitHub Copilot coding agent 使用该仓库。工作流将 Issue 标题、
+描述、编号和链接写入计划中的 Copilot 上下文，供人工审阅后交给 Copilot 实施。
+可通过创建测试 Issue、在 Actions 页面查看运行记录，或使用 `act`（提供等价的
+`github` 事件和写权限）进行手动验证。失败时工作流会在 Issue 中评论失败阶段及
+对应 Actions 日志入口。
+
 使用前需要满足：
 
 1. 仓库已启用 Copilot 编码代理（Coding agent）。
