@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI SDLC 全链路看板</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">AI DELIVERY INTELLIGENCE</p>
+      <h1>AI SDLC 全链路看板</h1>
+      <p class="muted">需求 → 开发 → 评测 → 发布 → 运行反馈 · 数据更新时间：<strong id="updated">刚刚</strong></p>
+    </div>
+    <button id="refresh" class="secondary">↻ 刷新数据</button>
+  </header>
+
+  <main>
+    <section class="filters" aria-label="筛选条件">
+      <label>时间范围<select id="range"><option value="30">近 30 天</option><option value="7">近 7 天</option><option value="90">近 90 天</option></select></label>
+      <label>团队/项目<select id="team"><option>全部团队</option><option>平台工程</option><option>智能客服</option><option>数据产品</option></select></label>
+      <label>仓库<select id="repo"><option>全部仓库</option><option>agenteval</option><option>gateway</option><option>console</option></select></label>
+      <label>发布版本<select id="release"><option>全部版本</option><option>v2.8.0</option><option>v2.7.1</option><option>v2.7.0</option></select></label>
+      <span class="latency">数据延迟 <b>2 分钟</b> · 覆盖率 <b>96%</b></span>
+    </section>
+
+    <nav class="tabs" aria-label="看板视图">
+      <button class="tab active" data-view="overview">总览</button>
+      <button class="tab" data-view="planning">需求与规划</button>
+      <button class="tab" data-view="development">开发与协作</button>
+      <button class="tab" data-view="quality">质量与评测</button>
+      <button class="tab" data-view="release">发布与可靠性</button>
+      <button class="tab" data-view="governance">AI 成本与治理</button>
+    </nav>
+    <div id="view" aria-live="polite"></div>
+  </main>
+  <dialog id="metric-dialog"><button class="close" aria-label="关闭">×</button><div id="metric-detail"></div></dialog>
+  <script src="app.js"></script>
+</body>
+</html>
