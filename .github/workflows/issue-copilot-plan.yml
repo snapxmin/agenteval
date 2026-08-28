@@ -119,8 +119,8 @@ jobs:
           stage="commit"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if ! git diff --quiet || [ -z "$(git log --oneline --all -- plan.md)" ]; then
-            git add plan.md
+          git add plan.md
+          if ! git diff --cached --quiet; then
             git commit -m "docs: add implementation plan for #${ISSUE_NUMBER}"
             git push --set-upstream origin "$branch"
           else
@@ -130,7 +130,7 @@ jobs:
           stage="pull request creation"
           pr_url=$(gh pr create --repo "$REPOSITORY" --base "$DEFAULT_BRANCH" --head "$branch" \
             --draft --title "Plan for #${ISSUE_NUMBER}: ${ISSUE_TITLE}" \
-            --body "Closes #${ISSUE_NUMBER}
+            --body "Related to #${ISSUE_NUMBER}
 
            This draft PR contains only the automatically generated implementation plan in \`plan.md\`.
            It is awaiting human review before any implementation work begins.
