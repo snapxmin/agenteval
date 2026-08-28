@@ -33,18 +33,23 @@ const records = [["需求 #1842","需求","验收完成","平台工程"],["PR #7
 const definitions = "公式、数据来源、刷新频率、时间窗口及维护方见指标定义；聚合延迟数据已标注，未采集数据不计为零值。";
 function card([name,value,unit,trend,kind]) {
   const state=kind==="warning"?"预警":"正常";
-  return `<article class="card" tabindex="0" data-metric="${name}"><h3>${name} <span class="status ${kind==='warning'?'warn':''}">${state}</span></h3><div class="value">${value}<span class="unit">${unit}</span></div><div class="trend ${kind}">${trend}</div><div class="bar"><i class="${kind==='warning'?'warn':''}" style="width:${Math.min(96,Math.max(22,parseFloat(value)||50))}%"></i></div></article>`;
+  return `<article class="card" role="button" tabindex="0" aria-label="查看${name}指标详情" data-metric="${name}"><h3>${name} <span class="status ${kind==='warning'?'warn':''}">${state}</span></h3><div class="value">${value}<span class="unit">${unit}</span></div><div class="trend ${kind}">${trend}</div><div class="bar"><i class="${kind==='warning'?'warn':''}" style="width:${Math.min(96,Math.max(22,parseFloat(value)||50))}%"></i></div></article>`;
 }
 function render(view="overview") {
   const group=metricGroups[view]||metricGroups.overview;
-  document.querySelector("#view").innerHTML=`<div class="section-title"><h2>${group.title}</h2><span>${group.subtitle}</span></div><div class="cards">${group.metrics.map(card).join("")}</div><div class="section-title"><h2>可下钻的最新记录</h2><span>点击指标卡查看口径、负责人及源系统</span></div><div class="table-wrap"><table class="records"><thead><tr><th>记录</th><th>类型</th><th>状态/结果</th><th>关联筛选</th></tr></thead><tbody>${records.map(r=>`<tr>${r.map((c,i)=>`<td>${i===2?`<span class="status ${c.includes("失败")?"warn":""}">${c}</span>`:c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
-  document.querySelectorAll(".card").forEach(el=>el.addEventListener("click",()=>showDetail(el.dataset.metric)));
+  document.querySelector("#view").innerHTML=`<div class="section-title"><h2>${group.title}</h2><span>${group.subtitle}</span></div><div class="cards">${group.metrics.map(card).join("")}</div><div class="section-title"><h2>可下钻的最新记录</h2><span>点击指标卡查看口径、负责人及源系统</span></div><div class="table-wrap"><table class="records"><thead><tr><th>记录</th><th>类型</th><th>状态/结果</th><th>关联筛选</th></tr></thead><tbody>${records.map(r=>`<tr>${r.map((c,i)=>`<td>${i===2?`<span class="status ${c.includes("失败")?"fail":""}">${c}</span>`:c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+  document.querySelectorAll(".card").forEach(el=>{
+    el.addEventListener("click",()=>showDetail(el.dataset.metric));
+    el.addEventListener("keydown", event=>{
+      if(event.key==="Enter"||event.key===" "){event.preventDefault();showDetail(el.dataset.metric);}
+    });
+  });
 }
 function showDetail(name) {
-  document.querySelector("#metric-detail").innerHTML=`<h2>${name}</h2><p>${definitions}</p><dl><dt>业务含义</dt><dd>反映当前筛选条件下 ${name} 的交付表现。</dd><dt>计算口径</dt><dd>按源系统记录聚合，周期类指标使用 P50/P75/P95。</dd><dt>数据来源 / 刷新</dt><dd>需求系统、Git、CI/CD、评测平台与可观测性平台；每 2 分钟刷新。</dd><dt>时间窗口 / 负责人</dt><dd>所选时间范围（默认近 30 天） · AI SDLC 平台组</dd></dl><h3>关联源记录</h3><p>支持下钻至需求、PR/MR、CI、评测、发布和运行事件明细。</p>`;
+  document.querySelector("#metric-detail").innerHTML=`<h2 id="metric-detail-title">${name}</h2><p>${definitions}</p><dl><dt>业务含义</dt><dd>反映当前筛选条件下 ${name} 的交付表现。</dd><dt>计算口径</dt><dd>按源系统记录聚合，周期类指标使用 P50/P75/P95。</dd><dt>数据来源 / 刷新</dt><dd>需求系统、Git、CI/CD、评测平台与可观测性平台；每 2 分钟刷新。</dd><dt>时间窗口 / 负责人</dt><dd>所选时间范围（默认近 30 天） · AI SDLC 平台组</dd></dl><h3>关联源记录</h3><p>支持下钻至需求、PR/MR、CI、评测、发布和运行事件明细。</p>`;
   document.querySelector("#metric-dialog").showModal();
 }
-document.querySelectorAll(".tab").forEach(tab=>tab.addEventListener("click",()=>{document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));tab.classList.add("active");render(tab.dataset.view)}));
+document.querySelectorAll(".tab").forEach(tab=>tab.addEventListener("click",()=>{document.querySelectorAll(".tab").forEach(t=>{t.classList.remove("active");t.setAttribute("aria-selected","false")});tab.classList.add("active");tab.setAttribute("aria-selected","true");render(tab.dataset.view)}));
 document.querySelector("#metric-dialog .close").addEventListener("click",()=>document.querySelector("#metric-dialog").close());
 document.querySelector("#refresh").addEventListener("click",()=>{document.querySelector("#updated").textContent="刚刚";render(document.querySelector(".tab.active").dataset.view)});
 ["range","team","repo","release"].forEach(id=>document.querySelector(`#${id}`).addEventListener("change",()=>render(document.querySelector(".tab.active").dataset.view)));
